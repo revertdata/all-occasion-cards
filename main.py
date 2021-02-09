@@ -12,28 +12,43 @@ import pandas as pd
 # from twitter import Twitter, OAuth
 # from t import ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET
 
-# import tensorflow as tf
-# from tensorflow.python.data import Dataset
+import tensorflow as tf
+from tensorflow.python.data import Dataset
+from tensorflow.keras.layers.experimental import preprocessing
 
 STARTC='\033[90m'
 ENDC='\033[0m'
 
+def print_maryn(text1, text2=''):
+	print(STARTC)
+	print("\n-----------\n")
+	print(ENDC)
+	print("maryn: ", text1)
+	print(STARTC)
+	print(text2)
+	print("\n-----------\n")
+	print(ENDC)
+
+	return
+
 class Generator(object):
 	def __init__(self):
-		self.poems = pd.read_json('./poems.json')
-		self.randomize_data()
+		self.poems = open('./poems.txt', 'rb').read().decode(encoding="utf-8")
+		self.vocab = sorted(set(self.poems))
 
-		self.feature = self.poems[["poem"]]
-		# self.feature_columns = [tf.feature_column.category_column("poem")]
+		self.ids_from_chars = []
+		self.chars_from_ids = []
+		self.dataset = []
+		self.process_text()
 
+		model = TrainingModel(vocab_size=len(self.ids_from_chars.get_vocabulary()))
 
-		print(STARTC)
-		print("\n-----------\n")
-		print('Loaded poem data.')
-		print(self.poems.describe())
-		print(self.feature)
-		print("\n-----------\n")
-		print(ENDC)
+		for input_example_batch, target_example_batch in self.dataset.take(1):
+			example_batch_predictions = model(input_example_batch)
+			sampled_indices = tf.random.categorical(example_batch_predictions[0], num_samples=1)
+			sampled_indices = tf.squeeze(sampled_indices, axis=-1).numpy()
+			print_maryn(self.text_from_ids(input_example_batch[0]).numpy(), self.text_from_ids(sampled_indices).numpy())
+
 		return
 
 	def randomize_data(self):
@@ -41,11 +56,68 @@ class Generator(object):
 
 		return
 
-	def train(self, features, targets, batch_size=1, shuffle=True, num_epochs=None):
+	def text_from_ids(self, ids):
+		return tf.strings.reduce_join(self.chars_from_ids(ids), axis=-1)
+
+	def split_input_target(self, sequence):
+		input_text = sequence[:-1]
+		target_text = sequence[1:]
+
+		return input_text, target_text
+
+	def process_text(self):
+		example_texts = ['abcdefg', 'xyz']
+		chars = tf.strings.unicode_split(example_texts, input_encoding="UTF-8")
+
+		self.ids_from_chars = preprocessing.StringLookup(vocabulary=list(self.vocab))
+		ids = self.ids_from_chars(chars)
+
+		self.chars_from_ids = preprocessing.StringLookup(vocabulary=self.ids_from_chars.get_vocabulary(), invert=True)
+		chars = self.chars_from_ids(ids)
+
+		seq_length = 100
+		all_ids = self.ids_from_chars(tf.strings.unicode_split(self.poems, 'UTF-8'))
+
+		ids_dataset = tf.data.Dataset.from_tensor_slices(all_ids)
+		sequences = ids_dataset.batch(seq_length+1, drop_remainder=True)
+		self.dataset = sequences.map(self.split_input_target)
+
+		# Batch size
+		BATCH_SIZE = 64
+
+		# Buffer size to shuffle the dataset
+		# (TF data is designed to work with possibly infinite sequences,
+		# so it doesn't attempt to shuffle the entire sequence in memory. Instead,
+		# it maintains a buffer in which it shuffles elements).
+		BUFFER_SIZE = 10000
+
+		self.dataset = (
+				self.dataset
+				.shuffle(BUFFER_SIZE)
+				.batch(BATCH_SIZE, drop_remainder=True)
+				.prefetch(tf.data.experimental.AUTOTUNE))
 
 		return
 
+class TrainingModel(tf.keras.Model):
+	def __init__(self, vocab_size, embedding_dim=256, rnn_units=1024):
+		super().__init__(self)
+		self.embedding = tf.keras.layers.Embedding(vocab_size, embedding_dim)
+		self.gru = tf.keras.layers.GRU(rnn_units, return_sequences=True, return_state=True)
+		self.dense = tf.keras.layers.Dense(vocab_size)
 
+	def call(self, inputs, states=None, return_state=False, training=False):
+		x = inputs
+		x = self.embedding(x, training=training)
+		if states is None:
+			states = self.gru.get_initial_state(x)
+		x, states = self.gru(x, initial_state=states, training=training) # breaks here
+		x = self.dense(x, training=training)
+
+		if return_state:
+			return x, states
+		else:
+			return x
 
 class Valentines(object):
 	def __init__(self):
@@ -96,19 +168,22 @@ class Valentines(object):
 		return
 
 def main():
-	running = True
+	print(STARTC)
+	Generator()
 
-	while running:
-		gen = Generator()
+	return
 
+	# running = True
+	# while running:
 		# _tw = Valentines()
 		# _tw.prepare_valentines()
 
-		answ = input('ready to send? (Y/N): ')
-		if answ.lower() in ('no', 'n', 'exit', 'e', 'quit', 'q'):
-			running = False
-		else:
-			_tw.send_valentines()
+		# answ = input('\nready to send? (Y/N): ')
+		# if answ.lower() in ('no', 'n', 'exit', 'e', 'quit', 'q'):
+		# 	running = False
+		# else:
+		# 	# _tw.send_valentines()
+		# 	pass
 
 if __name__ == '__main__':
 	main()
