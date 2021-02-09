@@ -1,0 +1,12 @@
+# -----------  Credentials  -----------
+t.py
+
+# -----------  TEMP Files  -----------
+.DS_Store
+.vscode
+.prettierrc
+__pycache__
+*.pyc
+users.json
+environment.yml
+requirements.txt
