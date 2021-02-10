@@ -97,8 +97,9 @@ class Generator(object):
 
 		return
 
-	def train(self, model, EPOCHS=250):
+	def train(self, model):
 		print()
+
 		checkpoint_dir = './training_checkpoints'
 		checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
 		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
@@ -106,8 +107,11 @@ class Generator(object):
 		files = [os.path.join(checkpoint_dir, file) for file in os.listdir("./training_checkpoints") if (file.lower().endswith('.index'))]
 		files = sorted(files,key=os.path.getmtime)
 		checkpoint_count = int(''.join(filter(str.isdigit, files[len(files)-1])))
-		model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
+		print(ENDC)
+		EPOCHS = int(input('\nEPOCH [ckpt '+str(checkpoint_count)+']: ') or 0)
+		print(STARTC)
 
+		model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
 		loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
 		model.compile(optimizer='adam', loss=loss)
 		model.fit(self.dataset, epochs=EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
@@ -120,7 +124,10 @@ class Generator(object):
 		next_char = tf.constant(['valentines'])
 		result = [next_char]
 
-		for _ in range(1000):
+		print(ENDC)
+		steps = int(input('steps: ') or 150)
+		print(STARTC)
+		for _ in range(steps):
 			next_char, states = one_step_model.generate_one_step(next_char, states=states)
 			result.append(next_char)
 
