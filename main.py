@@ -5,7 +5,9 @@
 # =   https://twitter.com/telepathics   =
 # =======================================
 
+import os
 import json
+
 import numpy as np
 import pandas as pd
 
@@ -42,12 +44,8 @@ class Generator(object):
 		self.process_text()
 
 		model = TrainingModel(vocab_size=len(self.ids_from_chars.get_vocabulary()))
-
-		for input_example_batch, target_example_batch in self.dataset.take(1):
-			example_batch_predictions = model(input_example_batch)
-			sampled_indices = tf.random.categorical(example_batch_predictions[0], num_samples=1)
-			sampled_indices = tf.squeeze(sampled_indices, axis=-1).numpy()
-			print_maryn(self.text_from_ids(input_example_batch[0]).numpy(), self.text_from_ids(sampled_indices).numpy())
+		self.train(model=model)
+		self.write(model=model)
 
 		return
 
@@ -80,7 +78,7 @@ class Generator(object):
 
 		ids_dataset = tf.data.Dataset.from_tensor_slices(all_ids)
 		sequences = ids_dataset.batch(seq_length+1, drop_remainder=True)
-		self.dataset = sequences.map(self.split_input_target)
+		dataset = sequences.map(self.split_input_target)
 
 		# Batch size
 		BATCH_SIZE = 64
@@ -92,12 +90,45 @@ class Generator(object):
 		BUFFER_SIZE = 10000
 
 		self.dataset = (
-				self.dataset
+				dataset
 				.shuffle(BUFFER_SIZE)
 				.batch(BATCH_SIZE, drop_remainder=True)
 				.prefetch(tf.data.experimental.AUTOTUNE))
 
 		return
+
+	def train(self, model, EPOCHS=250):
+		print()
+		checkpoint_dir = './training_checkpoints'
+		checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
+
+		files = [os.path.join(checkpoint_dir, file) for file in os.listdir("./training_checkpoints") if (file.lower().endswith('.index'))]
+		files = sorted(files,key=os.path.getmtime)
+		checkpoint_count = int(''.join(filter(str.isdigit, files[len(files)-1])))
+		model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
+
+		loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
+		model.compile(optimizer='adam', loss=loss)
+		model.fit(self.dataset, epochs=EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
+
+		return
+
+	def write(self, model):
+		one_step_model = OneStep(model, self.chars_from_ids, self.ids_from_chars)
+		states = None
+		next_char = tf.constant(['valentines'])
+		result = [next_char]
+
+		for _ in range(1000):
+			next_char, states = one_step_model.generate_one_step(next_char, states=states)
+			result.append(next_char)
+
+		result = tf.strings.join(result)
+
+		print(ENDC)
+		print(result[0].numpy().decode('utf-8'), '\n\n' + '_'*80)
+		print(STARTC)
 
 class TrainingModel(tf.keras.Model):
 	def __init__(self, vocab_size, embedding_dim=256, rnn_units=1024):
@@ -118,6 +149,49 @@ class TrainingModel(tf.keras.Model):
 			return x, states
 		else:
 			return x
+
+class OneStep(tf.keras.Model):
+	def __init__(self, model, chars_from_ids, ids_from_chars, temperature=1.0):
+		super().__init__()
+		self.temperature=temperature
+		self.model = model
+		self.chars_from_ids = chars_from_ids
+		self.ids_from_chars = ids_from_chars
+
+		# Create a mask to prevent "" or "[UNK]" from being generated.
+		skip_ids = self.ids_from_chars(['','[UNK]'])[:, None]
+		sparse_mask = tf.SparseTensor(
+				# Put a -inf at each bad index.
+				values=[-float('inf')]*len(skip_ids),
+				indices = skip_ids,
+				# Match the shape to the vocabulary
+				dense_shape=[len(ids_from_chars.get_vocabulary())])
+		self.prediction_mask = tf.sparse.to_dense(sparse_mask)
+
+	@tf.function
+	def generate_one_step(self, inputs, states=None):
+		# Convert strings to token IDs.
+		input_chars = tf.strings.unicode_split(inputs, 'UTF-8')
+		input_ids = self.ids_from_chars(input_chars).to_tensor()
+
+		# Run the model.
+		# predicted_logits.shape is [batch, char, next_char_logits]
+		predicted_logits, states =  self.model(inputs=input_ids, states=states, return_state=True)
+		# Only use the last prediction.
+		predicted_logits = predicted_logits[:, -1, :]
+		predicted_logits = predicted_logits/self.temperature
+		# Apply the prediction mask: prevent "" or "[UNK]" from being generated.
+		predicted_logits = predicted_logits + self.prediction_mask
+
+		# Sample the output logits to generate token IDs.
+		predicted_ids = tf.random.categorical(predicted_logits, num_samples=1)
+		predicted_ids = tf.squeeze(predicted_ids, axis=-1)
+
+		# Convert from token ids to characters
+		predicted_chars = self.chars_from_ids(predicted_ids)
+
+		# Return the characters and model state.
+		return predicted_chars, states
 
 class Valentines(object):
 	def __init__(self):

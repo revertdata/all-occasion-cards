@@ -10,3 +10,4 @@ __pycache__
 users.json
 environment.yml
 requirements.txt
+training_checkpoints
