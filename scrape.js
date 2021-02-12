@@ -1,4 +1,5 @@
 let users = [];
+let poems = [];
 
 const webAppScrape = () => {
   const main = document.getElementsByTagName("main");
@@ -38,4 +39,18 @@ const tweetdeckScrape = () => {
     .filter(function (val) {
       return /^@/g.test(val);
     });
+};
+
+const poemScrape = () => {
+  poems = Array.from(document.querySelectorAll("[id^='verse-']")).map((a) => {
+    if (a.innerText) return a.innerText;
+  });
+};
+
+const poemScrape = () => {
+  poems = Array.from(
+    document.querySelectorAll(".entry-summary.poem-excerpt")
+  ).map((a) => {
+    if (a.innerText) return a.innerText;
+  });
 };

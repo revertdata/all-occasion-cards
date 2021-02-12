@@ -35,6 +35,11 @@ def print_maryn(text1, text2=''):
 
 class Generator(object):
 	def __init__(self):
+		print(ENDC)
+		self.EPOCHS = int(input('\nEPOCH: ') or 0)
+		self.steps = int(input('steps: ') or 130)
+		print(STARTC)
+
 		self.poems = open('./poems.txt', 'rb').read().decode(encoding="utf-8")
 		self.vocab = sorted(set(self.poems))
 
@@ -100,21 +105,22 @@ class Generator(object):
 	def train(self, model):
 		print()
 
-		checkpoint_dir = './training_checkpoints'
-		checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
-		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
+		checkpoint_count = 0
+		try:
+			checkpoint_dir = './training_checkpoints'
+			checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+			files = [os.path.join(checkpoint_dir, file) for file in os.listdir("./training_checkpoints") if (file.lower().endswith('.index'))]
+			files = sorted(files,key=os.path.getmtime)
+			checkpoint_count = int(''.join(filter(str.isdigit, files[len(files)-1])))
 
-		files = [os.path.join(checkpoint_dir, file) for file in os.listdir("./training_checkpoints") if (file.lower().endswith('.index'))]
-		files = sorted(files,key=os.path.getmtime)
-		checkpoint_count = int(''.join(filter(str.isdigit, files[len(files)-1])))
-		print(ENDC)
-		EPOCHS = int(input('\nEPOCH [ckpt '+str(checkpoint_count)+']: ') or 0)
-		print(STARTC)
+			model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
+		except:
+			pass
 
-		model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
 		loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
 		model.compile(optimizer='adam', loss=loss)
-		model.fit(self.dataset, epochs=EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
+		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
+		model.fit(self.dataset, epochs=self.EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
 
 		return
 
@@ -124,10 +130,7 @@ class Generator(object):
 		next_char = tf.constant(['valentines'])
 		result = [next_char]
 
-		print(ENDC)
-		steps = int(input('steps: ') or 150)
-		print(STARTC)
-		for _ in range(steps):
+		for _ in range(self.steps):
 			next_char, states = one_step_model.generate_one_step(next_char, states=states)
 			result.append(next_char)
 
