@@ -9,6 +9,7 @@
 Tutorials referenced:
 * [tensorflow - text generation](https://www.tensorflow.org/tutorials/text/text_generation#build_the_model)
 * [tensorflow - save and load](https://www.tensorflow.org/tutorials/keras/save_and_load#save_checkpoints_during_training)
+* [PIL/pillow basic starting guide](https://code-maven.com/create-images-with-python-pil-pillow)
 
 Valentines Poems scraped from:
 * [inspirational-quotes-short-funny-stuff](https://www.inspirational-quotes-short-funny-stuff.com/)

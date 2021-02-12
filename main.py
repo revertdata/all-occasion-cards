@@ -10,13 +10,16 @@ import json
 
 import numpy as np
 import pandas as pd
+import urllib.request
 
-# from twitter import Twitter, OAuth
-# from t import ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET
+from twitter import Twitter, OAuth
+from t import ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET
 
 import tensorflow as tf
 from tensorflow.python.data import Dataset
 from tensorflow.keras.layers.experimental import preprocessing
+
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 STARTC='\033[90m'
 ENDC='\033[0m'
@@ -40,7 +43,7 @@ class Generator(object):
 		self.steps = int(input('steps: ') or 130)
 		print(STARTC)
 
-		self.poems = open('./poems.txt', 'rb').read().decode(encoding="utf-8")
+		self.poems = open('./assets/poems.txt', 'rb').read().decode(encoding="utf-8")
 		self.vocab = sorted(set(self.poems))
 
 		self.ids_from_chars = []
@@ -48,9 +51,9 @@ class Generator(object):
 		self.dataset = []
 		self.process_text()
 
-		model = TrainingModel(vocab_size=len(self.ids_from_chars.get_vocabulary()))
-		self.train(model=model)
-		self.write(model=model)
+		self.model = TrainingModel(vocab_size=len(self.ids_from_chars.get_vocabulary()))
+		self.train()
+		self.write()
 
 		return
 
@@ -102,32 +105,32 @@ class Generator(object):
 
 		return
 
-	def train(self, model):
+	def train(self):
 		print()
 
 		checkpoint_count = 0
 		try:
-			checkpoint_dir = './training_checkpoints'
+			checkpoint_dir = './assets/util/training_checkpoints'
 			checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
-			files = [os.path.join(checkpoint_dir, file) for file in os.listdir("./training_checkpoints") if (file.lower().endswith('.index'))]
+			files = [os.path.join(checkpoint_dir, file) for file in os.listdir("./assets/util/training_checkpoints") if (file.lower().endswith('.index'))]
 			files = sorted(files,key=os.path.getmtime)
 			checkpoint_count = int(''.join(filter(str.isdigit, files[len(files)-1])))
 
-			model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
+			self.model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
 		except:
 			pass
 
 		loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
-		model.compile(optimizer='adam', loss=loss)
+		self.model.compile(optimizer='adam', loss=loss)
 		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
-		model.fit(self.dataset, epochs=self.EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
+		self.model.fit(self.dataset, epochs=self.EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
 
 		return
 
-	def write(self, model):
-		one_step_model = OneStep(model, self.chars_from_ids, self.ids_from_chars)
+	def write(self, constant='friend'):
+		one_step_model = OneStep(self.model, self.chars_from_ids, self.ids_from_chars)
 		states = None
-		next_char = tf.constant(['valentines'])
+		next_char = tf.constant([constant])
 		result = [next_char]
 
 		for _ in range(self.steps):
@@ -135,10 +138,13 @@ class Generator(object):
 			result.append(next_char)
 
 		result = tf.strings.join(result)
+		text = result[0].numpy().decode('utf-8')
 
 		print(ENDC)
-		print(result[0].numpy().decode('utf-8'), '\n\n' + '_'*80)
+		print(text, '\n\n' + '_'*80)
 		print(STARTC)
+
+		return text
 
 class TrainingModel(tf.keras.Model):
 	def __init__(self, vocab_size, embedding_dim=256, rnn_units=1024):
@@ -204,35 +210,55 @@ class OneStep(tf.keras.Model):
 		return predicted_chars, states
 
 class Valentines(object):
-	def __init__(self):
-		# self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
-		# print(self.t.auth)
+	def __init__(self, _gen):
+		self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
+		self._gen = _gen
+
 		return
 
-	def fetch_recent_tweets(self, screen_name):
-		# TODO
-		# fetch tweets
-		return
+	def fetch_twitter_data(self, screen_name):
+		user = self.t.users.show(screen_name=screen_name)
+		urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name))
+
+		return user
 
 	def generate_card(self, screen_name):
-		self.fetch_recent_tweets(screen_name)
-		# TODO
-		# create card ???
+		user = self.fetch_twitter_data(screen_name)
+		text = self._gen.write(user['name'] + ',\n\n')
+		bg_pink = (255, 158, 167, 255)
+
+		img = Image.new('RGBA', (500, 500), color = bg_pink)
+		d = ImageDraw.Draw(img)
+
+		telebotics = Image.open('./assets/maryn.png', 'r')
+		telebotics.convert("RGBA")
+		img.paste(telebotics, (130, 50), telebotics)
+
+		hearts = Image.open('./assets/hearts.png', 'r')
+		hearts.convert("RGBA")
+		img.paste(hearts, (220, 50), hearts)
+
+		valentine = Image.open('./assets/twitter/{screen_name}-pfp.png'.format(screen_name=screen_name), 'r')
+		img.paste(valentine, (300, 50))
+
+		fnt = ImageFont.truetype('./assets/VT323/VT323-Regular.ttf', 22)
+		d.multiline_text((30,167), str(text) + '\n\n\nlove,\ntelebotics', font=fnt, fill=(10,10,10))
+
+		img.save('./assets/cards/{screen_name}.png'.format(screen_name=screen_name))
+
 		return
 
 	def prepare_valentines(self):
-		with open('users.json', 'r') as users:
+		with open('./assets/twitter/users.json', 'r') as users:
 			userslist = json.load(users)
 			for user in userslist:
-				self.generate_card(user)
-				# TODO
-				# save card to folder
+				self.generate_card(user.replace('@', ''))
 			print('cards have been generated.')
 		return
 
 	def send_valentines(self):
 		# TODO send DM with image attached
-		with open('users.json', 'r') as users:
+		with open('./assets/twitter/users.json', 'r') as users:
 			userslist = json.load(users)
 			for user in userslist:
 				print('sending to ' + user)
@@ -253,7 +279,10 @@ class Valentines(object):
 
 def main():
 	print(STARTC)
-	Generator()
+	_gen = Generator()
+	_val = Valentines(_gen)
+
+	_val.prepare_valentines()
 
 	return
 
