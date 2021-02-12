@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 import urllib.request
 
-from twitter import Twitter, OAuth
-from t import ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET
+# from twitter import Twitter, OAuth
+# from t import ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET
 
 import tensorflow as tf
 from tensorflow.python.data import Dataset
@@ -211,19 +211,20 @@ class OneStep(tf.keras.Model):
 
 class Valentines(object):
 	def __init__(self, _gen):
-		self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
+		# self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
 		self._gen = _gen
 
 		return
 
-	def fetch_twitter_data(self, screen_name):
-		user = self.t.users.show(screen_name=screen_name)
-		urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name))
+	# def fetch_twitter_data(self, screen_name):
+		# user = self.t.users.show(screen_name=screen_name)
+		# urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name))
 
-		return user
+		# return user
 
 	def generate_card(self, screen_name):
-		user = self.fetch_twitter_data(screen_name)
+		# user = self.fetch_twitter_data(screen_name)
+		user = {'name': screen_name}
 		text = self._gen.write(user['name'] + ',\n\n')
 		bg_pink = (255, 158, 167, 255)
 
