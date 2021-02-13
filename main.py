@@ -53,7 +53,6 @@ class Generator(object):
 
 		self.model = TrainingModel(vocab_size=len(self.ids_from_chars.get_vocabulary()))
 		self.train()
-		self.write()
 
 		return
 
@@ -116,12 +115,20 @@ class Generator(object):
 			files = sorted(files,key=os.path.getmtime)
 			checkpoint_count = int(''.join(filter(str.isdigit, files[len(files)-1])))
 
-			self.model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count))
+			self.model.load_weights(checkpoint_prefix.format(epoch=checkpoint_count)).expect_partial()
 		except:
 			pass
 
 		loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
-		self.model.compile(optimizer='adam', loss=loss)
+		adam = tf.keras.optimizers.Adam(
+				learning_rate=tf.Variable(0.001),
+				beta_1=tf.Variable(0.9),
+				beta_2=tf.Variable(0.999),
+				epsilon=tf.Variable(1e-7),
+				decay = tf.Variable(0.0),
+		)
+		adam.iterations
+		self.model.compile(optimizer=adam, loss=loss)
 		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
 		self.model.fit(self.dataset, epochs=self.EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
 
@@ -139,10 +146,6 @@ class Generator(object):
 
 		result = tf.strings.join(result)
 		text = result[0].numpy().decode('utf-8')
-
-		print(ENDC)
-		print(text, '\n\n' + '_'*80)
-		print(STARTC)
 
 		return text
 
@@ -212,6 +215,7 @@ class OneStep(tf.keras.Model):
 class Valentines(object):
 	def __init__(self, _gen):
 		self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
+		self.t_upload = Twitter(domain="upload.twitter.com", auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
 		self._gen = _gen
 
 		return
@@ -253,7 +257,41 @@ class Valentines(object):
 			userslist = json.load(users)
 			for user in userslist:
 				self.generate_card(user.replace('@', ''))
-			print('cards have been generated.')
+			print('\ncards have been generated.')
+
+		return
+
+	def upload_image(self, file_loc):
+		print('\nuploading {image} to twitter...'.format(image=file_loc).replace('./assets/cards/', ''))
+
+		with open(file_loc, 'rb') as imagefile:
+			imagedata = imagefile.read()
+		media_id = self.t_upload.media.upload(media = imagedata)['media_id_string']
+
+		return media_id
+
+	def send_valentine_dm(self, screen_name, media_id):
+		print('sending to {screen_name}'.format(screen_name=screen_name))
+		self.t.direct_messages.events.new(
+			_json={
+				"event": {
+					"type": "message_create",
+					"message_create": {
+						"target": {
+								"recipient_id": self.t.users.show(screen_name=screen_name)["id"]},
+						"message_data": {
+								"attachment": {
+									"type": "media",
+									"media": {
+										"id": media_id
+									}
+								}
+						}
+					}
+				}
+			}
+		)
+
 		return
 
 	def send_valentines(self):
@@ -261,20 +299,12 @@ class Valentines(object):
 		with open('./assets/twitter/users.json', 'r') as users:
 			userslist = json.load(users)
 			for user in userslist:
-				print('sending to ' + user)
-				# t.direct_messages.events.new(
-				# 	_json={
-				# 		"event": {
-				# 			"type": "message_create",
-				# 			"message_create": {
-				# 				"target": {
-				# 						"recipient_id": t.users.show(screen_name=uscreen_name)["id"]},
-				# 				"message_data": {
-				# 						"text": DM_MSG}
-				# 			}
-				# 		}
-				# 	}
-				# )
+				screen_name = user.replace('@', '')
+				file_loc = './assets/cards/{screen_name}.png'.format(screen_name=screen_name)
+
+				media_id = self.upload_image(file_loc)
+				self.send_valentine_dm(screen_name, media_id)
+
 		return
 
 def main():
@@ -283,20 +313,14 @@ def main():
 	_val = Valentines(_gen)
 
 	_val.prepare_valentines()
+	print(ENDC)
+	answ = input('ready to send? (Y/N): ')
+	print(STARTC)
+	if answ.lower() in ('no', 'n', 'exit', 'e', 'quit', 'q'):
+		return
+	else:
+		_val.send_valentines()
 
-	return
-
-	# running = True
-	# while running:
-		# _tw = Valentines()
-		# _tw.prepare_valentines()
-
-		# answ = input('\nready to send? (Y/N): ')
-		# if answ.lower() in ('no', 'n', 'exit', 'e', 'quit', 'q'):
-		# 	running = False
-		# else:
-		# 	# _tw.send_valentines()
-		# 	pass
 
 if __name__ == '__main__':
 	main()
