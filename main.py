@@ -11,6 +11,8 @@ import json
 import numpy as np
 import pandas as pd
 import urllib.request
+import enchant
+import random
 
 from twitter import Twitter, OAuth
 from t import ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET
@@ -50,6 +52,13 @@ class Generator(object):
 		print(STARTC)
 
 		self.poems = open('./assets/poems.txt', 'rb').read().decode(encoding="utf-8")
+
+		# add insta poems
+		with open('./assets/insta_poems.txt', 'r') as instapoems:
+			for line in instapoems:
+				if '--@ ' not in line:
+					self.poems += line
+
 		self.vocab = sorted(set(self.poems))
 
 		self.ids_from_chars = []
@@ -77,14 +86,8 @@ class Generator(object):
 		return input_text, target_text
 
 	def process_text(self):
-		example_texts = ['abcdefg', 'xyz']
-		chars = tf.strings.unicode_split(example_texts, input_encoding="UTF-8")
-
 		self.ids_from_chars = preprocessing.StringLookup(vocabulary=list(self.vocab))
-		ids = self.ids_from_chars(chars)
-
 		self.chars_from_ids = preprocessing.StringLookup(vocabulary=self.ids_from_chars.get_vocabulary(), invert=True)
-		chars = self.chars_from_ids(ids)
 
 		seq_length = 100
 		all_ids = self.ids_from_chars(tf.strings.unicode_split(self.poems, 'UTF-8'))
@@ -127,13 +130,13 @@ class Generator(object):
 
 		loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
 		adam = tf.keras.optimizers.Adam(
-				learning_rate=tf.Variable(0.001),
-				beta_1=tf.Variable(0.9),
-				beta_2=tf.Variable(0.999),
-				epsilon=tf.Variable(1e-7),
-				decay = tf.Variable(0.0),
+			learning_rate=tf.Variable(0.001),
+			beta_1=tf.Variable(0.9),
+			beta_2=tf.Variable(0.999),
+			epsilon=tf.Variable(1e-7),
 		)
 		adam.iterations
+		adam.decay = tf.Variable(0.0)  # Adam.__init__ assumes ``decay`` is a float object, so this needs to be converted to tf.Variable **after** __init__ method.
 		self.model.compile(optimizer=adam, loss=loss)
 		checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_prefix, save_weights_only=True)
 		self.model.fit(self.dataset, epochs=self.EPOCHS, initial_epoch=checkpoint_count, callbacks=[checkpoint_callback])
@@ -152,6 +155,19 @@ class Generator(object):
 
 		result = tf.strings.join(result)
 		text = result[0].numpy().decode('utf-8')
+
+		arr = text.split()
+		ench_dict = enchant.Dict("en_US")
+		for i in range(len(arr) - 1):
+			if arr[i] not in constant:
+				try:
+					word = ''.join(e for e in arr[i] if e.isalnum())
+					if not ench_dict.check(word):
+						suggestions = ench_dict.suggest(word)
+						closest = suggestions[random.randint(0, len(suggestions) - 1)].lower()
+						text = text.replace(arr[i], closest)
+				except:
+					pass
 
 		return text
 
@@ -227,14 +243,17 @@ class Valentines(object):
 		return
 
 	def fetch_twitter_data(self, screen_name):
-		user = self.t.users.show(screen_name=screen_name)
-		urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name))
+		user_pfp_png = "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name)
+		if not os.path.exists(user_pfp_png):
+			urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), user_pfp_png)
 
-		return user
+		return
 
 	def generate_card(self, screen_name):
-		user = self.fetch_twitter_data(screen_name)
-		text = self._gen.write(user['name'] + ',\n\n')
+		print('writing a card for {screen_name}...'.format(screen_name=screen_name))
+		self.fetch_twitter_data(screen_name)
+
+		text = self._gen.write(screen_name + ',\n\n')
 		bg_pink = (255, 158, 167, 255)
 
 		img = Image.new('RGBA', (500, 500), color = bg_pink)
@@ -259,6 +278,7 @@ class Valentines(object):
 		return
 
 	def prepare_valentines(self):
+		print()
 		with open('./assets/twitter/users.json', 'r') as users:
 			userslist = json.load(users)
 			for user in userslist:
@@ -286,6 +306,7 @@ class Valentines(object):
 						"target": {
 								"recipient_id": self.t.users.show(screen_name=screen_name)["id"]},
 						"message_data": {
+								"text": "happy valentines day :3",
 								"attachment": {
 									"type": "media",
 									"media": {
@@ -316,19 +337,23 @@ class Valentines(object):
 def main():
 	print(STARTC)
 	_gen = Generator()
-	_val = Valentines(_gen)
 
 	print(ENDC)
 	answ = input('generate new cards? (Y/N): ')
 	print(STARTC)
 	if answ_yes(answ):
+		_val = Valentines(_gen)
 		_val.prepare_valentines()
 
 	print(ENDC)
 	answ = input('ready to send? (Y/N): ')
 	print(STARTC)
 	if answ_yes(answ):
-		_val.send_valentines()
+		try:
+			_val.send_valentines()
+		except:
+			_val = Valentines(_gen)
+			_val.send_valentines()
 
 	return
 
