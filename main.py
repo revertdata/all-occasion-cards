@@ -36,6 +36,12 @@ def print_maryn(text1, text2=''):
 
 	return
 
+def answ_yes(answ):
+	if answ.lower() in ('no', 'n', 'exit', 'e', 'quit', 'q'):
+		return False
+
+	return True
+
 class Generator(object):
 	def __init__(self):
 		print(ENDC)
@@ -312,15 +318,19 @@ def main():
 	_gen = Generator()
 	_val = Valentines(_gen)
 
-	_val.prepare_valentines()
+	print(ENDC)
+	answ = input('generate new cards? (Y/N): ')
+	print(STARTC)
+	if answ_yes(answ):
+		_val.prepare_valentines()
+
 	print(ENDC)
 	answ = input('ready to send? (Y/N): ')
 	print(STARTC)
-	if answ.lower() in ('no', 'n', 'exit', 'e', 'quit', 'q'):
-		return
-	else:
+	if answ_yes(answ):
 		_val.send_valentines()
 
+	return
 
 if __name__ == '__main__':
 	main()
