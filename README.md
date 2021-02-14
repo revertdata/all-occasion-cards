@@ -1,8 +1,27 @@
-# Valentines <!-- omit in toc -->
+# All-Occasion Cards <!-- omit in toc -->
 
-> Creating Valentines Day cards for my twitter followers.
+> Generating all-occasion cards for my twitter followers with tensorflow.
 
 🗣 Say hello! [@telepathics](https://twitter.com/telepathics)
+
+Currently, you can only generate Valentines day cards, but I will be adding/updating designs as the year progresses and I come up with new ideas :)
+
+## Installation
+
+Personally, I prefer to use a [Conda](https://formulae.brew.sh/cask/anaconda) env for keeping my python packages tidy, so feel free to check that out.  This is good to keep track of what packages are actually necessary.  To install dependencies for Tweeder, run the following in your terminal from the root of the repo:
+
+`pip install -r requirements.txt`
+
+You will also need to install enchant's C library for the dictionary, [libenchant](https://pyenchant.github.io/pyenchant/install.html).
+
+*And finally, I would highly advise not using a new macbook with M1 with this project.  Just trust me.*
+
+`python ./main.py`
+
+## Contributing
+Please feel free to fork + make pull requests with your own card designs, bug fixes, features, and whatever you think would improve this project!
+
+If you want to support myself or the project, consider [sponsoring my GitHub](https://github.com/sponsors/revertdata)! <3
 
 ## Credits
 
