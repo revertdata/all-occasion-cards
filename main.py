@@ -318,27 +318,31 @@ class Cards(object):
 		return media_id
 
 	def send_card_dm(self, screen_name, media_id):
-		print('sending to {screen_name}'.format(screen_name=screen_name))
-		self.t.direct_messages.events.new(
-			_json={
-				"event": {
-					"type": "message_create",
-					"message_create": {
-						"target": {
-								"recipient_id": self.t.users.show(screen_name=screen_name)["id"]},
-						"message_data": {
-								"text": "happy valentines day :3",
-								"attachment": {
-									"type": "media",
-									"media": {
-										"id": media_id
+		try:
+			print('sending to {screen_name}'.format(screen_name=screen_name))
+			self.t.direct_messages.events.new(
+				_json={
+					"event": {
+						"type": "message_create",
+						"message_create": {
+							"target": {
+									"recipient_id": self.t.users.show(screen_name=screen_name)["id"]},
+							"message_data": {
+									"text": "happy valentines day :3",
+									"attachment": {
+										"type": "media",
+										"media": {
+											"id": media_id
+										}
 									}
-								}
+							}
 						}
 					}
 				}
-			}
-		)
+			)
+		except:
+			print_maryn('Could not send DM to {screen_name}.  Moving along...'.format(screen_name=screen_name))
+			pass
 
 		return
 

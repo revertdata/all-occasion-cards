@@ -8,7 +8,11 @@ Currently, you can only generate Valentines day cards, but I will be adding/upda
 
 ## Installation
 
-Personally, I prefer to use a [Conda](https://formulae.brew.sh/cask/anaconda) env for keeping my python packages tidy, so feel free to check that out.  This is good to keep track of what packages are actually necessary.  To install dependencies for Tweeder, run the following in your terminal from the root of the repo:
+Personally, I prefer to use a [Conda](https://formulae.brew.sh/cask/anaconda) env for keeping my python packages tidy, so feel free to check that out.  This is good to keep track of what packages are actually necessary.
+
+`conda env create -f environment.yml`
+
+Otherwise, feel free to install the requirements via pip.
 
 `pip install -r requirements.txt`
 
