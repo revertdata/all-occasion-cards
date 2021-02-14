@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # =======================================
-# =         VALENTINES DAY CARDS        =
+# =           CARD GENERATORS           =
 # =   https://twitter.com/telepathics   =
 # =======================================
 
@@ -234,25 +234,22 @@ class OneStep(tf.keras.Model):
 		# Return the characters and model state.
 		return predicted_chars, states
 
-class Valentines(object):
-	def __init__(self, _gen):
-		self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
-		self.t_upload = Twitter(domain="upload.twitter.com", auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
+class CardDesigns(object):
+	def __init__(self, _gen, occasion):
 		self._gen = _gen
+		self.occasion = ''
+		return
+
+	def draw(self, screen_name):
+		if self.occasion == 'vday':
+			self.valentines(screen_name)
+		else:
+			self.valentines(screen_name) # default
 
 		return
 
-	def fetch_twitter_data(self, screen_name):
-		user_pfp_png = "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name)
-		if not os.path.exists(user_pfp_png):
-			urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), user_pfp_png)
-
-		return
-
-	def generate_card(self, screen_name):
-		print('writing a card for {screen_name}...'.format(screen_name=screen_name))
-		self.fetch_twitter_data(screen_name)
-
+	def valentines(self, screen_name):
+		print('drawing a valentine for {screen_name}...'.format(screen_name=screen_name))
 		text = self._gen.write(screen_name + ',\n\n')
 		bg_pink = (255, 158, 167, 255)
 
@@ -277,10 +274,34 @@ class Valentines(object):
 
 		return
 
-	def prepare_valentines(self):
+
+class Cards(object):
+	def __init__(self, _gen, occasion):
+		self.t = Twitter(auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
+		self.t_upload = Twitter(domain="upload.twitter.com", auth=OAuth(ACCESS_TOKEN_KEY, ACCESS_TOKEN_SECRET, CONSUMER_KEY, CONSUMER_SECRET))
+		self._gen = _gen
+		self.design = CardDesigns(_gen, occasion)
+
+		return
+
+	def fetch_twitter_data(self, screen_name):
+		user_pfp_png = "./assets/twitter/{screen_name}-pfp.png".format(screen_name=screen_name)
+		if not os.path.exists(user_pfp_png):
+			user = self.t.users.show(screen_name=screen_name)
+			urllib.request.urlretrieve(user['profile_image_url_https'].replace('normal','bigger'), user_pfp_png)
+
+		return
+
+	def generate_card(self, screen_name):
+		self.fetch_twitter_data(screen_name)
+		self.design.draw(screen_name)
+
+		return
+
+	def prepare_cards(self):
 		print()
-		with open('./assets/twitter/users.json', 'r') as users:
-			userslist = json.load(users)
+		with open('./assets/twitter/users.json', 'r') as screen_names:
+			userslist = json.load(screen_names)
 			for user in userslist:
 				self.generate_card(user.replace('@', ''))
 			print('\ncards have been generated.')
@@ -296,7 +317,7 @@ class Valentines(object):
 
 		return media_id
 
-	def send_valentine_dm(self, screen_name, media_id):
+	def send_card_dm(self, screen_name, media_id):
 		print('sending to {screen_name}'.format(screen_name=screen_name))
 		self.t.direct_messages.events.new(
 			_json={
@@ -321,16 +342,15 @@ class Valentines(object):
 
 		return
 
-	def send_valentines(self):
-		# TODO send DM with image attached
-		with open('./assets/twitter/users.json', 'r') as users:
-			userslist = json.load(users)
+	def send_cards(self):
+		with open('./assets/twitter/users.json', 'r') as screen_names:
+			userslist = json.load(screen_names)
 			for user in userslist:
 				screen_name = user.replace('@', '')
 				file_loc = './assets/cards/{screen_name}.png'.format(screen_name=screen_name)
 
 				media_id = self.upload_image(file_loc)
-				self.send_valentine_dm(screen_name, media_id)
+				self.send_card_dm(screen_name, media_id)
 
 		return
 
@@ -339,21 +359,22 @@ def main():
 	_gen = Generator()
 
 	print(ENDC)
+	occasion = input('whats the occasion? (vday): ' or 'vday')
 	answ = input('generate new cards? (Y/N): ')
 	print(STARTC)
 	if answ_yes(answ):
-		_val = Valentines(_gen)
-		_val.prepare_valentines()
+		_cards = Cards(_gen, occasion)
+		_cards.prepare_cards()
 
 	print(ENDC)
 	answ = input('ready to send? (Y/N): ')
 	print(STARTC)
 	if answ_yes(answ):
 		try:
-			_val.send_valentines()
+			_cards.send_cards()
 		except:
-			_val = Valentines(_gen)
-			_val.send_valentines()
+			_cards = Cards(_gen, occasion)
+			_cards.send_cards()
 
 	return
 
